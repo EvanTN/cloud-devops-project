@@ -51,6 +51,12 @@ class UserOut(BaseModel):
 # =========================
 # Utility Functions
 # =========================
+
+@app.get("/")
+def root():
+    return {"message": "Backend is alive!"}
+
+
 def get_db():
     db = SessionLocal()
     try:
