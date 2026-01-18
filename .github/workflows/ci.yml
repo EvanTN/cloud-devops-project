@@ -47,7 +47,7 @@ jobs:
           alembic upgrade head
   docker-build:
     runs-on: ubuntu-latest
-    needs: test
+    needs: build
 
     steps:
       - name: Checkout code
