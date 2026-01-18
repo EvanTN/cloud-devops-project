@@ -1,2 +1,4 @@
 # cloud-devops-project
-Learning Backend
+
+![CI](https://github.com/EvanTN/cloud-devops-project/actions/workflows/ci.yml/badge.svg)
+
