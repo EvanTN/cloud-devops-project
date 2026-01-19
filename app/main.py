@@ -115,6 +115,11 @@ def debug_tables(db: Session = Depends(get_db)):
     """)
     return [row[0] for row in result]
 
+@app.get("/debug/users")
+def debug_users(db: Session = Depends(get_db)):
+    result = db.execute("SELECT * FROM users LIMIT 10")
+    return result.fetchall()
+
 # =========================
 # Auth Endpoints
 # =========================
