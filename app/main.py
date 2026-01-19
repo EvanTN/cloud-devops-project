@@ -18,7 +18,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",   # React dev
-        "https://projectevan.vercel.app/",
+        "https://projectevan.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
