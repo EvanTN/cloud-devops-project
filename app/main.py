@@ -119,8 +119,20 @@ def debug_tables(db: Session = Depends(get_db)):
 
 @app.get("/debug/users")
 def debug_users(db: Session = Depends(get_db)):
-    result = db.execute("SELECT * FROM users LIMIT 10")
-    return result.fetchall()
+    users = db.query(models.User).all()
+    return [
+        {
+            "id": user.id,
+            "username": user.username,
+            "created_at": user.created_at,
+        }
+        for user in users
+    ]
+
+@app.get("/debug/users/raw")
+def debug_users_raw(db: Session = Depends(get_db)):
+    result = db.execute(text("SELECT * FROM users"))
+    return [dict(row._mapping) for row in result]
 
 # =========================
 # Auth Endpoints
