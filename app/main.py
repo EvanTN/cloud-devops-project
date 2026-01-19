@@ -111,6 +111,7 @@ def get_current_user(
 # =========================
 @app.post("/auth/register", response_model=UserOut)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    print("REGISTER:", user.username, repr(user.password))
     existing_user = (
         db.query(models.User)
         .filter(models.User.username == user.username)
