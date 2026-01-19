@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from app.database import SessionLocal
 from app import models, schemas
+from sqlalchemy import text
 
 # Auth imports
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -108,11 +109,12 @@ def get_current_user(
 # Table Check
 @app.get("/debug/tables")
 def debug_tables(db: Session = Depends(get_db)):
-    result = db.execute("""
+    result = db.execute(text("""
         SELECT table_name
         FROM information_schema.tables
         WHERE table_schema = 'public';
-    """)
+    """))
+
     return [row[0] for row in result]
 
 @app.get("/debug/users")
