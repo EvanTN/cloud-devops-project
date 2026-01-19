@@ -105,6 +105,15 @@ def get_current_user(
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+# Table Check
+@app.get("/debug/tables")
+def debug_tables(db: Session = Depends(get_db)):
+    result = db.execute("""
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public';
+    """)
+    return [row[0] for row in result]
 
 # =========================
 # Auth Endpoints
