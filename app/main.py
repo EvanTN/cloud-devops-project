@@ -109,18 +109,12 @@ def get_current_user(
 # =========================
 # Auth Endpoints
 # =========================
-@app.post("/auth/register", response_model=UserOut)
+@app.post("/auth/register", response_model=Token)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    print("REGISTER:", user.username, repr(user.password))
-    existing_user = (
-        db.query(models.User)
-        .filter(models.User.username == user.username)
-        .first()
-    )
-
+    existing_user = db.query(models.User).filter(models.User.username == user.username).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Username already exists")
-
+    
     db_user = models.User(
         username=user.username,
         hashed_password=hash_password(user.password),
@@ -130,7 +124,10 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
 
-    return {"username": db_user.username}
+    # Return token immediately
+    access_token = create_access_token({"sub": db_user.username})
+    return {"access_token": access_token, "token_type": "bearer"}
+
 
 
 @app.post("/auth/login", response_model=Token)
