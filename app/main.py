@@ -14,6 +14,10 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
+import httpx
+import os
+from fastapi import Query
+
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -35,6 +39,7 @@ SECRET_KEY = "supersecretkey"  # 🔒 move to env var in production
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -48,6 +53,128 @@ class Token(BaseModel):
 
 class UserOut(BaseModel):
     username: str
+
+# =========================
+# TMDB API + Functions
+# =========================
+TMDB_API_KEY = os.getenv("edfcf331668390816db423cdcf80ac3c") 
+GOOGLE_BOOKS_API = "https://www.googleapis.com/books/v1/volumes"
+
+@app.get("/search")
+def search(query: str = Query(...), type: str = Query("all")):
+    results = []
+
+    # Search movies via TMDb
+    if type in ["all", "movie"]:
+        tmdb_url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={query}"
+        with httpx.Client() as client:
+            r = client.get(tmdb_url)
+            data = r.json()
+            for m in data.get("results", []):
+                results.append({
+                    "externalId": f"tmdb-{m['id']}",
+                    "title": m["title"],
+                    "description": m.get("overview"),
+                    "posterUrl": f"https://image.tmdb.org/t/p/w500{m.get('poster_path')}" if m.get("poster_path") else None,
+                    "type": "movie"
+                })
+
+    # Search books via Google Books
+    if type in ["all", "book"]:
+        gb_url = f"{GOOGLE_BOOKS_API}?q={query}"
+        with httpx.Client() as client:
+            r = client.get(gb_url)
+            data = r.json()
+            for b in data.get("items", []):
+                volume = b.get("volumeInfo", {})
+                results.append({
+                    "externalId": f"gb-{b['id']}",
+                    "title": volume.get("title"),
+                    "description": volume.get("description"),
+                    "posterUrl": volume.get("imageLinks", {}).get("thumbnail"),
+                    "type": "book"
+                })
+
+    return results
+
+@app.post("/user/items")
+def add_user_item(
+    external_id: str,
+    title: str,
+    type: str,
+    poster_url: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    # Check if the item exists in DB
+    item = db.query(models.Item).filter(models.Item.external_id == external_id).first()
+    if not item:
+        item = models.Item(
+            external_id=external_id,
+            name=title,
+            type=type,
+            poster_url=poster_url
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+
+    # Check if user already has this item
+    existing_user_item = db.query(models.UserItem).filter(
+        models.UserItem.user_id == current_user.id,
+        models.UserItem.item_id == item.id
+    ).first()
+
+    if existing_user_item:
+        return existing_user_item
+
+    # Add to user's list
+    user_item = models.UserItem(
+        user_id=current_user.id,
+        item_id=item.id,
+        status="plan"
+    )
+    db.add(user_item)
+    db.commit()
+    db.refresh(user_item)
+
+    return user_item
+
+@app.get("/user/items", response_model=List[schemas.UserItemOut])
+def list_user_items(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    user_items = db.query(models.UserItem).filter(models.UserItem.user_id == current_user.id).all()
+    return user_items
+
+@app.put("/user/items/{user_item_id}")
+def update_user_item(
+    user_item_id: int,
+    status: Optional[str] = None,
+    rating: Optional[int] = None,
+    review: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    user_item = db.query(models.UserItem).filter(
+        models.UserItem.id == user_item_id,
+        models.UserItem.user_id == current_user.id
+    ).first()
+
+    if not user_item:
+        raise HTTPException(status_code=404, detail="User item not found")
+
+    if status:
+        user_item.status = status
+    if rating:
+        user_item.rating = rating
+    if review:
+        user_item.review = review
+
+    db.commit()
+    db.refresh(user_item)
+    return user_item
 
 
 # =========================
