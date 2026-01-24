@@ -282,7 +282,7 @@ def delete_item(
 # =========================
 # TMDB API + Functions
 # =========================
-TMDB_API_KEY = os.getenv("edfcf331668390816db423cdcf80ac3c") 
+TMDB_API_KEY = os.getenv("TMDB_API_KEY") 
 GOOGLE_BOOKS_API = "https://www.googleapis.com/books/v1/volumes"
 
 @app.get("/search")
