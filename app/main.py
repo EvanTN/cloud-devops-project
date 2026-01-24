@@ -20,7 +20,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",   # React dev
         "https://projectevan.vercel.app",
-        "https://cloud-devops-api.onrender.com",
+        "https://cloud-project-front-end.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
