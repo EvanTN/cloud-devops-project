@@ -20,6 +20,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",   # React dev
         "https://projectevan.vercel.app",
+        "https://cloud-devops-api.onrender.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -105,8 +106,10 @@ def get_current_user(
 
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
-
+# ==============
 # Table Check
+# ==============
+
 @app.get("/debug/tables")
 def debug_tables(db: Session = Depends(get_db)):
     result = db.execute(text("""
@@ -122,12 +125,12 @@ def debug_users(db: Session = Depends(get_db)):
     users = db.query(models.User).all()
     return [
         {
-            "id": user.id,
-            "username": user.username,
-            "created_at": user.created_at,
+            "id": u.id,
+            "username": u.username
         }
-        for user in users
+        for u in users
     ]
+
 
 @app.get("/debug/users/raw")
 def debug_users_raw(db: Session = Depends(get_db)):
