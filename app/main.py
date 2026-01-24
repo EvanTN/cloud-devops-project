@@ -5,6 +5,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 
 from app.database import SessionLocal
+from app.schemas import UserItemCreate
 from app import models, schemas
 from sqlalchemy import text
 
@@ -322,32 +323,32 @@ def search(query: str = Query(...), type: str = Query("all")):
 
     return results
 
-@app.post("/user/items")
+from fastapi import Body
+
+@app.post("/user/items", response_model=schemas.UserItemOut)
 def add_user_item(
-    external_id: str,
-    title: str,
-    type: str,
-    poster_url: Optional[str] = None,
+    item: UserItemCreate = Body(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    # Use item.external_id, item.title, etc.
     # Check if the item exists in DB
-    item = db.query(models.Item).filter(models.Item.external_id == external_id).first()
-    if not item:
-        item = models.Item(
-            external_id=external_id,
-            name=title,
-            type=type,
-            poster_url=poster_url
+    db_item = db.query(models.Item).filter(models.Item.external_id == item.external_id).first()
+    if not db_item:
+        db_item = models.Item(
+            external_id=item.external_id,
+            name=item.title,
+            type=item.type,
+            poster_url=item.poster_url
         )
-        db.add(item)
+        db.add(db_item)
         db.commit()
-        db.refresh(item)
+        db.refresh(db_item)
 
     # Check if user already has this item
     existing_user_item = db.query(models.UserItem).filter(
         models.UserItem.user_id == current_user.id,
-        models.UserItem.item_id == item.id
+        models.UserItem.item_id == db_item.id
     ).first()
 
     if existing_user_item:
@@ -356,7 +357,7 @@ def add_user_item(
     # Add to user's list
     user_item = models.UserItem(
         user_id=current_user.id,
-        item_id=item.id,
+        item_id=db_item.id,
         status="plan"
     )
     db.add(user_item)
@@ -365,15 +366,28 @@ def add_user_item(
 
     return user_item
 
+
 @app.get("/user/items", response_model=List[schemas.UserItemOut])
 def list_user_items(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    user_items = db.query(models.UserItem).filter(models.UserItem.user_id == current_user.id).all()
+    """
+    List all items in the current user's list.
+    Joins UserItem with Item to return full item info.
+    """
+    user_items = (
+        db.query(models.UserItem)
+        .join(models.Item)
+        .filter(models.UserItem.user_id == current_user.id)
+        .all()
+    )
+
+    # Optional: convert to UserItemOut
     return user_items
 
-@app.put("/user/items/{user_item_id}")
+
+@app.put("/user/items/{user_item_id}", response_model=schemas.UserItemOut)
 def update_user_item(
     user_item_id: int,
     status: Optional[str] = None,
@@ -382,17 +396,26 @@ def update_user_item(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    user_item = db.query(models.UserItem).filter(
-        models.UserItem.id == user_item_id,
-        models.UserItem.user_id == current_user.id
-    ).first()
+    """
+    Update the user's item fields: status, rating, review.
+    Returns updated UserItemOut including full item info.
+    """
+    user_item = (
+        db.query(models.UserItem)
+        .join(models.Item)
+        .filter(
+            models.UserItem.id == user_item_id,
+            models.UserItem.user_id == current_user.id
+        )
+        .first()
+    )
 
     if not user_item:
         raise HTTPException(status_code=404, detail="User item not found")
 
     if status:
         user_item.status = status
-    if rating:
+    if rating is not None:
         user_item.rating = rating
     if review:
         user_item.review = review

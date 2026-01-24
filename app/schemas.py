@@ -46,3 +46,18 @@ class UserItemOut(Item):
 
     class Config:
         orm_mode = True
+
+
+class UserItemCreate(BaseModel):
+    external_id: str
+    title: str
+    type: str
+    poster_url: Optional[str] = None
+    
+    class Config:
+        allow_population_by_field_name = True
+        # Optional: map camelCase JSON keys to snake_case Python fields
+        fields = {
+            "external_id": "externalId",
+            "poster_url": "posterUrl",
+        }
