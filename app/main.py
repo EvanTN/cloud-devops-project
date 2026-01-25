@@ -223,18 +223,30 @@ def health_check():
 #     return db_item
 
 
-# @app.get("/items/{item_id}", response_model=schemas.Item)
-# def read_item(
-#     item_id: int,
-#     db: Session = Depends(get_db),
-#     current_user: models.User = Depends(get_current_user),
-# ):
-#     item = db.query(models.Item).filter(models.Item.id == item_id).first()
+@app.get("/items/{external_id}", response_model=schemas.UserItemOut)
+def get_item_by_external_id(
+    external_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Get a single item from the current user's list by its external ID.
+    """
+    user_item = (
+        db.query(models.UserItem)
+        .join(models.Item)
+        .filter(
+            models.UserItem.user_id == current_user.id,
+            models.Item.external_id == external_id
+        )
+        .first()
+    )
 
-#     if not item:
-#         raise HTTPException(status_code=404, detail="Item not found")
+    if not user_item:
+        raise HTTPException(status_code=404, detail="Item not found in your list")
 
-#     return item
+    return user_item
+
 
 
 # @app.get("/items/", response_model=List[schemas.Item])
