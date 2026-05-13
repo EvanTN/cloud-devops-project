@@ -343,9 +343,10 @@ def add_user_item(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    # Use item.external_id, item.title, etc.
-    # Check if the item exists in DB
-    db_item = db.query(models.Item).filter(models.Item.external_id == item.external_id).first()
+    db_item = db.query(models.Item).filter(
+        models.Item.external_id == item.external_id
+    ).first()
+
     if not db_item:
         db_item = models.Item(
             external_id=item.external_id,
@@ -357,26 +358,35 @@ def add_user_item(
         db.commit()
         db.refresh(db_item)
 
-    # Check if user already has this item
     existing_user_item = db.query(models.UserItem).filter(
         models.UserItem.user_id == current_user.id,
         models.UserItem.item_id == db_item.id
     ).first()
 
-    if existing_user_item:
-        return existing_user_item
+    user_item = existing_user_item
 
-    # Add to user's list
-    user_item = models.UserItem(
-        user_id=current_user.id,
-        item_id=db_item.id,
-        status="plan"
-    )
-    db.add(user_item)
-    db.commit()
-    db.refresh(user_item)
+    if not existing_user_item:
+        user_item = models.UserItem(
+            user_id=current_user.id,
+            item_id=db_item.id,
+            status="plan"
+        )
+        db.add(user_item)
+        db.commit()
+        db.refresh(user_item)
 
-    return user_item
+    return {
+        "id": user_item.id,
+        "user_id": current_user.id,
+        "item_id": db_item.id,
+        "external_id": db_item.external_id,
+        "name": db_item.name,
+        "type": db_item.type,
+        "poster_url": db_item.poster_url,
+        "status": user_item.status,
+        "rating": user_item.rating,
+        "review": user_item.review,
+    }
 
 
 @app.get("/user/items", response_model=List[schemas.UserItemOut])
