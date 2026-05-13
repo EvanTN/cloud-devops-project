@@ -1,5 +1,5 @@
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -202,6 +202,25 @@ def health_check():
     return {"status": "ok"}
 
 
+
+
+def user_item_to_out(user_item: models.UserItem):
+    """Convert a UserItem ORM object into the shape expected by UserItemOut."""
+    item = user_item.item
+    return {
+        "id": user_item.id,
+        "user_id": user_item.user_id,
+        "item_id": user_item.item_id,
+        "external_id": item.external_id,
+        "name": item.name,
+        "title": item.name,
+        "type": item.type,
+        "poster_url": item.poster_url,
+        "status": user_item.status,
+        "rating": user_item.rating,
+        "review": user_item.review,
+    }
+
 # =========================
 # Protected Item Endpoints
 # =========================
@@ -245,7 +264,7 @@ def get_item_by_external_id(
     if not user_item:
         raise HTTPException(status_code=404, detail="Item not found in your list")
 
-    return user_item
+    return user_item_to_out(user_item)
 
 
 
@@ -335,7 +354,6 @@ def search(query: str = Query(...), type: str = Query("all")):
 
     return results
 
-from fastapi import Body
 
 @app.post("/user/items", response_model=schemas.UserItemOut)
 def add_user_item(
@@ -375,18 +393,7 @@ def add_user_item(
         db.commit()
         db.refresh(user_item)
 
-    return {
-        "id": user_item.id,
-        "user_id": current_user.id,
-        "item_id": db_item.id,
-        "external_id": db_item.external_id,
-        "name": db_item.name,
-        "type": db_item.type,
-        "poster_url": db_item.poster_url,
-        "status": user_item.status,
-        "rating": user_item.rating,
-        "review": user_item.review,
-    }
+    return user_item_to_out(user_item)
 
 
 @app.get("/user/items", response_model=List[schemas.UserItemOut])
@@ -405,22 +412,19 @@ def list_user_items(
         .all()
     )
 
-    # Optional: convert to UserItemOut
-    return user_items
+    return [user_item_to_out(ui) for ui in user_items]
 
 
 @app.put("/user/items/{user_item_id}", response_model=schemas.UserItemOut)
 def update_user_item(
     user_item_id: int,
-    status: Optional[str] = None,
-    rating: Optional[int] = None,
-    review: Optional[str] = None,
+    updates: dict = Body(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     """
     Update the user's item fields: status, rating, review.
-    Returns updated UserItemOut including full item info.
+    The React frontend sends these values as a JSON body.
     """
     user_item = (
         db.query(models.UserItem)
@@ -435,13 +439,39 @@ def update_user_item(
     if not user_item:
         raise HTTPException(status_code=404, detail="User item not found")
 
-    if status:
-        user_item.status = status
-    if rating is not None:
-        user_item.rating = rating
-    if review:
-        user_item.review = review
+    if "status" in updates and updates["status"] is not None:
+        user_item.status = updates["status"]
+
+    if "rating" in updates:
+        user_item.rating = updates["rating"]
+
+    if "review" in updates and updates["review"] is not None:
+        user_item.review = updates["review"]
 
     db.commit()
     db.refresh(user_item)
-    return user_item
+    return user_item_to_out(user_item)
+
+
+@app.delete("/user/items/{user_item_id}")
+def delete_user_item(
+    user_item_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Remove an item from the current user's list."""
+    user_item = (
+        db.query(models.UserItem)
+        .filter(
+            models.UserItem.id == user_item_id,
+            models.UserItem.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not user_item:
+        raise HTTPException(status_code=404, detail="User item not found")
+
+    db.delete(user_item)
+    db.commit()
+    return {"message": "Item removed from your list"}
